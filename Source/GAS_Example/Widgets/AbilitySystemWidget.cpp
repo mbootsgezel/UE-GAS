@@ -4,6 +4,7 @@
 #include "AbilitySystemGlobals.h"
 #include "GAS_Example/AbilitySystem/AttributeSets/HealthAttributeSet.h"
 #include "GAS_Example/AbilitySystem/AttributeSets/StaminaAttributeSet.h"
+#include "GAS_Example/AbilitySystem/AttributeSets/EnergyAttributeSet.h"
 
 
 UAbilitySystemComponent* UAbilitySystemWidget::GetOwnerAbilitySystemComponent() const
@@ -32,6 +33,9 @@ bool UAbilitySystemWidget::InitializeAbilitySystemWidget(UAbilitySystemComponent
 		ResetDelegateHandle(MaximumStaminaChangeDelegate, OldAbilitySystemComponent, UStaminaAttributeSet::GetMaximumStaminaAttribute());
 		ResetDelegateHandle(CurrentStaminaChangeDelegate, OldAbilitySystemComponent, UStaminaAttributeSet::GetCurrentStaminaAttribute());
 		ResetDelegateHandle(StaminaRegenerationChangeDelegate, OldAbilitySystemComponent, UStaminaAttributeSet::GetStaminaRegenerationAttribute());
+		ResetDelegateHandle(MaximumEnergyChangeDelegate, OldAbilitySystemComponent, UEnergyAttributeSet::GetMaximumEnergyAttribute());
+		ResetDelegateHandle(CurrentEnergyChangeDelegate, OldAbilitySystemComponent, UEnergyAttributeSet::GetCurrentEnergyAttribute());
+		ResetDelegateHandle(EnergyRegenerationChangeDelegate, OldAbilitySystemComponent, UEnergyAttributeSet::GetEnergyRegenerationAttribute());
 	}
 	
 	// Bind Health attribute delegates if the Ability System Component has the required Attribute Set -and- we are listening for Health attributes.
@@ -79,9 +83,36 @@ bool UAbilitySystemWidget::InitializeAbilitySystemWidget(UAbilitySystemComponent
 			return false;
 		}
 	}
+
+	// Bind Energy attribute delegates if the Ability System Component has the required Attribute Set -and- we are listening for Energy attributes.
+	if (ListenForEnergyAttributeSetChanges)
+	{
+		if (AbilitySystemComponent->HasAttributeSetForAttribute(UEnergyAttributeSet::GetMaximumEnergyAttribute()))
+		{
+			MaximumEnergyChangeDelegate = AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UEnergyAttributeSet::GetMaximumEnergyAttribute()).AddUObject(this, &UAbilitySystemWidget::MaximumEnergyChanged);
+			CurrentEnergyChangeDelegate = AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UEnergyAttributeSet::GetCurrentEnergyAttribute()).AddUObject(this, &UAbilitySystemWidget::CurrentEnergyChanged);
+			EnergyRegenerationChangeDelegate = AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UEnergyAttributeSet::GetEnergyRegenerationAttribute()).AddUObject(this, &UAbilitySystemWidget::EnergyRegenerationChanged);
+
+			const float MaxEnergy = AbilitySystemComponent->GetNumericAttribute(UEnergyAttributeSet::GetMaximumEnergyAttribute());
+			const float CurrentEnergy = AbilitySystemComponent->GetNumericAttribute(UEnergyAttributeSet::GetCurrentEnergyAttribute());
+		
+			// Call the Blueprint Events to initialize the values.
+			On_MaximumEnergyChanged(MaxEnergy, 0.0f, CurrentEnergy / MaxEnergy);
+			On_CurrentEnergyChanged(CurrentEnergy, 0.0f, CurrentEnergy / MaxEnergy);
+			On_EnergyRegenerationChanged(AbilitySystemComponent->GetNumericAttribute(UEnergyAttributeSet::GetEnergyRegenerationAttribute()), 0.0f);
+		}
+		else
+		{
+			return false;
+		}
+	}
 	
 	return true;
 }
+
+//
+// Health
+//
 
 void UAbilitySystemWidget::MaximumHealthChanged(const FOnAttributeChangeData& Data)
 {
@@ -102,6 +133,10 @@ void UAbilitySystemWidget::HealthRegenerationChanged(const FOnAttributeChangeDat
 	On_HealthRegenerationChanged(Data.NewValue, Data.OldValue);
 }
 
+//
+// Stamina
+//
+
 void UAbilitySystemWidget::MaximumStaminaChanged(const FOnAttributeChangeData& Data)
 {
 	const float CurrentStamina = AbilitySystemComponent->GetNumericAttribute(UStaminaAttributeSet::GetCurrentStaminaAttribute());
@@ -120,6 +155,33 @@ void UAbilitySystemWidget::StaminaRegenerationChanged(const FOnAttributeChangeDa
 {
 	On_StaminaRegenerationChanged(Data.NewValue, Data.OldValue);
 }
+
+//
+// Energy
+//
+
+void UAbilitySystemWidget::MaximumEnergyChanged(const FOnAttributeChangeData& Data)
+{
+	const float CurrentEnergy = AbilitySystemComponent->GetNumericAttribute(UEnergyAttributeSet::GetCurrentEnergyAttribute());
+
+	On_MaximumEnergyChanged(Data.NewValue, Data.OldValue, CurrentEnergy / Data.NewValue);
+}
+
+void UAbilitySystemWidget::CurrentEnergyChanged(const FOnAttributeChangeData& Data)
+{
+	const float MaxEnergy = AbilitySystemComponent->GetNumericAttribute(UEnergyAttributeSet::GetMaximumEnergyAttribute());
+
+	On_CurrentEnergyChanged(Data.NewValue, Data.OldValue, Data.NewValue / MaxEnergy);
+}
+
+void UAbilitySystemWidget::EnergyRegenerationChanged(const FOnAttributeChangeData& Data)
+{
+	On_EnergyRegenerationChanged(Data.NewValue, Data.OldValue);
+}
+
+//
+// Reset
+//
 
 void UAbilitySystemWidget::ResetDelegateHandle(FDelegateHandle DelegateHandle, UAbilitySystemComponent* OldAbilitySystemComponent, const FGameplayAttribute& Attribute)
 {
